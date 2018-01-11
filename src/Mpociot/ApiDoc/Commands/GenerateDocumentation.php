@@ -63,6 +63,9 @@ class GenerateDocumentation extends Command
     {
         if ($this->option('router') === 'laravel') {
             $generator = new LaravelGenerator();
+            $generator->setActAsUserId($this->option('actAsUserId'));
+            $generator->setAuthProvider($this->option('authProvider'));
+            $generator->setAuthGuard($this->option('authGuard'));
         } else {
             $generator = new DingoGenerator();
         }
@@ -70,8 +73,6 @@ class GenerateDocumentation extends Command
         $allowedRoutes = $this->option('routes');
         $routePrefix = $this->option('routePrefix');
         $middleware = $this->option('middleware');
-
-        $this->setUserToBeImpersonated($this->option('actAsUserId'));
 
         if ($routePrefix === null && ! count($allowedRoutes) && $middleware === null) {
             $this->error('You must provide either a route prefix or a route or a middleware to generate the documentation.');
@@ -215,25 +216,6 @@ class GenerateDocumentation extends Command
     }
 
     /**
-     * @param $actAs
-     */
-    private function setUserToBeImpersonated($actAs)
-    {
-        if (! empty($actAs)) {
-            if (version_compare($this->laravel->version(), '5.2.0', '<')) {
-                $userModel = config('auth.model');
-                $user = $userModel::find((int) $actAs);
-                $this->laravel['auth']->setUser($user);
-            } else {
-                $provider = $this->option('authProvider');
-                $userModel = config("auth.providers.$provider.model");
-                $user = $userModel::find((int) $actAs);
-                $this->laravel['auth']->guard($this->option('authGuard'))->setUser($user);
-            }
-        }
-    }
-
-    /**
      * @return mixed
      */
     private function getRoutes()
@@ -261,7 +243,7 @@ class GenerateDocumentation extends Command
         foreach ($routes as $route) {
             if (in_array($route->getName(), $allowedRoutes) || str_is($routePrefix, $generator->getUri($route)) || in_array($middleware, $route->middleware())) {
                 if ($this->isValidRoute($route) && $this->isRouteVisibleForDocumentation($route->getAction()['uses'])) {
-                    $parsedRoutes[] = $generator->processRoute($route, $bindings, $this->option('header'), $withResponse);
+                    $parsedRoutes[] = $generator->processRoute($route, $bindings, $this->option('header'), $withResponse, $this->option('actAsUserId'));
                     $this->info('Processed route: ['.implode(',', $generator->getMethods($route)).'] '.$generator->getUri($route));
                 } else {
                     $this->warn('Skipping route: ['.implode(',', $generator->getMethods($route)).'] '.$generator->getUri($route));
