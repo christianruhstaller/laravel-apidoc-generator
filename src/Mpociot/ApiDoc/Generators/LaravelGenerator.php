@@ -15,6 +15,51 @@ use Illuminate\Foundation\Http\FormRequest;
 class LaravelGenerator extends AbstractGenerator
 {
     /**
+     * The id which should be impersonated for the requests.
+     *
+     * @var integer
+     */
+    protected $actAsUserId = null;
+
+    /**
+     * Which auth provider should be used for the requests.
+     *
+     * @var string
+     */
+    protected $authProvider = 'users';
+
+    /**
+     * Which auth guard should be used for the requests.
+     *
+     * @var string
+     */
+    protected $authGuard = 'web';
+
+    /**
+     * @param $userId
+     */
+    public function setActAsUserId($userId)
+    {
+        $this->actAsUserId = $userId;
+    }
+
+    /**
+     * @param $provider
+     */
+    public function setAuthProvider($provider)
+    {
+        $this->authProvider = $provider;
+    }
+
+    /**
+     * @param $guard
+     */
+    public function setAuthGuard($guard)
+    {
+        $this->authGuard = $guard;
+    }
+
+    /**
      * @param Route $route
      *
      * @return mixed
@@ -136,6 +181,8 @@ class LaravelGenerator extends AbstractGenerator
         );
 
         $kernel = App::make('Illuminate\Contracts\Http\Kernel');
+        $this->impersonateUser($kernel->getApplication());
+
         $response = $kernel->handle($request);
 
         $kernel->terminate($request, $response);
@@ -276,5 +323,24 @@ class LaravelGenerator extends AbstractGenerator
         }
 
         return [];
+    }
+
+    /**
+     * @param $actAs
+     */
+    private function impersonateUser($laravel)
+    {
+        if (! empty($this->actAsUserId)) {
+            if (version_compare($laravel->version(), '5.2.0', '<')) {
+                $userModel = config('auth.model');
+                $user = $userModel::find((int) $this->actAsUserId);
+                $laravel['auth']->setUser($user);
+            } else {
+                $provider = $this->authProvider;
+                $userModel = config("auth.providers.$provider.model");
+                $user = $userModel::find((int) $this->actAsUserId);
+                $laravel['auth']->guard($this->authGuard)->setUser($user);
+            }
+        }
     }
 }
